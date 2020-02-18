@@ -6,8 +6,9 @@
 import pyart
 from pyart.core.radar import Radar
 import netCDF4
+import numpy as np
 
-def read_mirslCDF(filename):
+def read_ptwrCDF(filename):
 	"""
 	Takes the filepath to a MIRSL netcdf file as input.
 	Returns a pyart Radar object.
@@ -20,15 +21,105 @@ def read_mirslCDF(filename):
 	# Read ptwr cdf	
 	ncobj = netCDF4.Dataset(filename)
 	ncvars = ncobj.variables
-	print(ncvars)
+	#print(ncvars)
 
 	
 	# coordinate variables -> create attribute dictionaries
-	time = _ncvar_to_dict(ncvars['Time'])
+	time = _ncvar_to_dict(ncvars['Time'])				# Probably have to add the usec part
+	Usecs = _ncvar_to_dict(ncvars['Usecs'])				# Probably have to add the usec part
+	timeIt = 0
+	for item in time["data"]:
+		#print(item)
+		timeIt = timeIt + 1
 	
-	
-	#ptwr = Radar(object)
+	#_range = _ncvar_to_dict(ncvars['range'])
+	#print(time)
+	#print(time["data"])
+	#for key,value in time.items():
+	#	print(key)
 
+
+	#----------------------------- Unsure about this metadata thing ------------------------------
+	# 4.1 Global attribute -> move to metadata dictionary
+	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
+	if 'n_gates_vary' in metadata:
+		metadata['n_gates_vary'] = 'false'  # corrected below
+
+	# 4.2 Dimensions (do nothing)
+
+	# 4.3 Global variable -> move to metadata dictionary
+	if 'volume_number' in ncvars:
+		metadata['volume_number'] = int(ncvars['volume_number'][:])
+	else:
+		metadata['volume_number'] = 0
+
+	global_vars = {'platform_type': 'fixed', 'instrument_type': 'radar',
+		   'primary_axis': 'axis_z'}
+	# ignore time_* global variables, these are calculated from the time
+	# variable when the file is written.
+	for var, default_value in global_vars.items():
+		if var in ncvars:
+			metadata[var] = str(netCDF4.chartostring(ncvars[var][:]))
+	else:
+		metadata[var] = default_value
+	#----------------------------------------------------------------------------------------------
+	
+	
+	i = 0
+	gatewidth = _ncvar_to_dict(ncvars['GateWidth'])
+	#print(gatewidth)
+	#print("test", gatewidth.data[0])
+	rangeIt = 0
+	for item in gatewidth["data"]:
+		print(item * rangeIt)
+		rangeIt = rangeIt + 1
+	"""
+	for key in gatewidth.items():
+		if(i>0):
+			print(key)
+			print("OKAYYYYY")
+			print(gatewidth[key][0])
+		i=i+1
+		print(i)
+	"""
+	
+	
+	
+	
+	fields = None
+	scan_type = None
+	latitude = None
+	longitude = None
+	altitude = None
+	sweep_number = None
+	sweep_mode = None
+	fixed_angle = None
+	sweep_start_ray_index = None
+	sweep_end_ray_index = None
+	azimuth = None
+	elevation = None
+
+	return Radar(time, _range, fields, metadata, scan_type,
+                 latitude, longitude, altitude,
+
+                 sweep_number, sweep_mode, fixed_angle, sweep_start_ray_index,
+                 sweep_end_ray_index,
+
+                 azimuth, elevation,
+
+                 altitude_agl=None,
+                 target_scan_rate=None, rays_are_indexed=None,
+                 ray_angle_res=None,
+
+                 scan_rate=None, antenna_transition=None,
+
+                 instrument_parameters=None,
+                 radar_calibration=None,
+
+                 rotation=None, tilt=None, roll=None, drift=None, heading=None,
+                 pitch=None, georefs_applied=None,
+
+                 )
 
 
 def _ncvar_to_dict(ncvar, lazydict=False):
@@ -80,4 +171,4 @@ class _NetCDFVariableDataExtractor(object):
 
 
 
-read_mirslCDF('X20191016232920Z.nc')
+read_ptwrCDF('X20191016232920Z.nc')
