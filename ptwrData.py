@@ -64,15 +64,21 @@ def read_ptwrCDF(filename):
 		metadata[var] = default_value
 	#----------------------------------------------------------------------------------------------
 	
+	scan_type = 'ppi'
 	
 	i = 0
 	gatewidth = _ncvar_to_dict(ncvars['GateWidth'])
+	_range = gatewidth
 	#print(gatewidth)
 	#print("test", gatewidth.data[0])
 	rangeIt = 0
 	for item in gatewidth["data"]:
-		print(item * rangeIt)
+		#print(item * rangeIt)
+		_range["data"][rangeIt] = item * rangeIt;
 		rangeIt = rangeIt + 1
+		
+	print(_range)
+	sweep_number = {'data': np.ma.array([0], mask=False)};
 	"""
 	for key in gatewidth.items():
 		if(i>0):
@@ -84,14 +90,35 @@ def read_ptwrCDF(filename):
 	"""
 	
 	
+	if 'ray_n_gates' in ncvars:
+        # all variables with dimensions of n_points are fields.
+        keys = [k for k, v in ncvars.items()
+                if v.dimensions == ('n_points', )]
+    else:
+        # all variables with dimensions of 'time', 'range' are fields
+        keys = [k for k, v in ncvars.items()
+                if v.dimensions == ('time', 'range')]
+
+	fields = {}
+    for key in keys:
+        field_name = filemetadata.get_field_name(key)
+        if field_name is None:
+            if exclude_fields is not None and key in exclude_fields:
+                if key not in include_fields:
+                    continue
+            if include_fields is None or key in include_fields:
+                field_name = key
+            else:
+                continue
+        fields[field_name] = _ncvar_to_dict(ncvars[key], delay_field_loading)
 	
 	
-	fields = None
-	scan_type = None
+	#fields = None
+	#scan_type = None
 	latitude = None
 	longitude = None
 	altitude = None
-	sweep_number = None
+	#sweep_number = None
 	sweep_mode = None
 	fixed_angle = None
 	sweep_start_ray_index = None
@@ -118,7 +145,7 @@ def read_ptwrCDF(filename):
 
                  rotation=None, tilt=None, roll=None, drift=None, heading=None,
                  pitch=None, georefs_applied=None,
-
+                 
                  )
 
 
@@ -171,4 +198,29 @@ class _NetCDFVariableDataExtractor(object):
 
 
 
-read_ptwrCDF('X20191016232920Z.nc')
+radar = read_ptwrCDF('X20191016232920Z.nc')
+
+#PLOT ONE GRID EXAMPLE
+
+# mask out last 10 gates of each ray, this removes the "ring" around th radar.
+radar.fields['reflectivity']['data'][:, -10:] = np.ma.masked
+
+# exclude masked gates from the gridding
+gatefilter = pyart.filters.GateFilter(radar)
+gatefilter.exclude_transition()
+gatefilter.exclude_masked('reflectivity')
+
+# perform Cartesian mapping, limit to the reflectivity field.
+grid = pyart.map.grid_from_radars(
+    (radar,), gatefilters=(gatefilter, ),
+    grid_shape=(1, 241, 241),
+    grid_limits=((2000, 2000), (-123000.0, 123000.0), (-123000.0, 123000.0)),
+    fields=['reflectivity'])
+
+# create the plot
+fig = plt.figure()
+ax = fig.add_subplot(111)
+ax.imshow(grid.fields['reflectivity']['data'][0], origin='lower')
+plt.show()
+
+
