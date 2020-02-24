@@ -41,29 +41,29 @@ fill_value = -9999.0
 
 # Radar reflectivity fields, DZ
 reflectivity = 'Reflectivity'
-corrected_reflectivity = 'CorrectedReflectivity'
-total_power = 'TxPower'
+corrected_reflectivity = 'corrected_reflectivity'
+total_power = 'total_power'
 
 # Mean Doppler velocity fields, VEL
-velocity = 'Velocity'
+velocity = 'velocity'
 corrected_velocity = 'corrected_velocity'
 simulated_velocity = 'simulated_velocity'
 
 # Spectral width fields, SW
-spectrum_width = 'SpectralWidth'
+spectrum_width = 'spectrum_width'
 
 # Differential reflectivity fields, ZDR
-differential_reflectivity = 'DifferentialReflectivity'
+differential_reflectivity = 'differential_reflectivity'
 corrected_differential_reflectivity = 'corrected_differential_reflectivity'
 
 # Cross correlation ratio, correlation coefficient, RhoHV
-cross_correlation_ratio = 'CrossPolCorrelation'
+cross_correlation_ratio = 'cross_correlation_ratio'
 
 # Normalized coherent power, signal quality index, SQI, NCP
-normalized_coherent_power = 'NormalizedCoherentPower'
+normalized_coherent_power = 'normalized_coherent_power'
 
 # Differential phase shift, PhiDP
-differential_phase = 'DifferentialPhase'
+differential_phase = 'differential_phase'
 unfolded_differential_phase = 'unfolded_differential_phase'
 corrected_differential_phase = 'corrected_differential_phase'
 
@@ -77,7 +77,7 @@ linear_depolarization_ratio_h = 'linear_depolarization_ratio_h'
 linear_depolarization_ratio_v = 'linear_depolarization_ratio_v'
 
 # Misc fields
-signal_to_noise_ratio = 'SignalToNoiseRatio'
+signal_to_noise_ratio = 'signal_to_noise_ratio'
 rain_rate = 'rain_rate'
 radar_estimated_rain_rate = 'radar_estimated_rain_rate'
 radar_echo_classification = 'radar_echo_classification'
@@ -146,7 +146,7 @@ FILL_VALUE = fill_value
 
 DEFAULT_FIELD_NAMES = {
     # Internal field name (do not change): field name used (can change)
-    'reflectivity': reflectivity,
+    'Reflectivity': reflectivity,
     'corrected_reflectivity': corrected_reflectivity,
     'total_power': total_power,
     'velocity': velocity,
