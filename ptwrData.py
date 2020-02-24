@@ -17,7 +17,7 @@ def read_ptwrCDF(filename):
 	References: 'pyart/pyart/io/cfradial.py'
 		    'pyart/pyart/core/radar.py'
 	"""
-	
+	pyart.load_config('/home/jdegug/MIRSL-PTWR-PythonGUI/ptwr_config.py')
 	# Read ptwr cdf	
 	ncobj = netCDF4.Dataset(filename)
 	ncvars = ncobj.variables
@@ -74,11 +74,12 @@ def read_ptwrCDF(filename):
 	rangeIt = 0
 	for item in gatewidth["data"]:
 		#print(item * rangeIt)
-		_range["data"][rangeIt] = item * rangeIt;
+		_range["data"][rangeIt] = item * rangeIt
 		rangeIt = rangeIt + 1
 		
 	print(_range)
 	sweep_number = {'data': np.ma.array([0], mask=False)};
+	
 	"""
 	for key in gatewidth.items():
 		if(i>0):
@@ -88,31 +89,53 @@ def read_ptwrCDF(filename):
 		i=i+1
 		print(i)
 	"""
-	
-	
-	if 'ray_n_gates' in ncvars:
-        # all variables with dimensions of n_points are fields.
-        keys = [k for k, v in ncvars.items()
-                if v.dimensions == ('n_points', )]
-    else:
-        # all variables with dimensions of 'time', 'range' are fields
-        keys = [k for k, v in ncvars.items()
-                if v.dimensions == ('time', 'range')]
+    
+	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
+	if 'n_gates_vary' in metadata:
+		metadata['n_gates_vary'] = 'false'  # corrected below
 
+	# 4.2 Dimensions (do nothing)
+
+	# 4.3 Global variable -> move to metadata dictionary
+	if 'volume_number' in ncvars:
+		metadata['volume_number'] = int(ncvars['volume_number'][:])
+	else:
+		metadata['volume_number'] = 0
+
+	global_vars = {'platform_type': 'fixed', 'instrument_type': 'radar',
+				   'primary_axis': 'axis_z'}
+	# ignore time_* global variables, these are calculated from the time
+	# variable when the file is written.
+	for var, default_value in global_vars.items():
+		if var in ncvars:
+			metadata[var] = str(netCDF4.chartostring(ncvars[var][:]))
+		else:
+			metadata[var] = default_value
+			
+	# 4.10 Moments field data variables -> field attribute dictionary
+	if 'ray_n_gates' in ncvars:
+		# all variables with dimensions of n_points are fields.
+		keys = [k for k, v in ncvars.items()
+				if v.dimensions == ('n_points', )]
+	else:
+		# all variables with dimensions of 'time', 'range' are fields
+		keys = [k for k, v in ncvars.items()
+				if v.dimensions == ('time', 'range')]
+                
 	fields = {}
-    for key in keys:
-        field_name = filemetadata.get_field_name(key)
-        if field_name is None:
-            if exclude_fields is not None and key in exclude_fields:
-                if key not in include_fields:
-                    continue
-            if include_fields is None or key in include_fields:
-                field_name = key
-            else:
-                continue
-        fields[field_name] = _ncvar_to_dict(ncvars[key], delay_field_loading)
-	
-	
+	for key in keys:
+		field_name = filemetadata.get_field_name(key)
+		if field_name is None:
+			if exclude_fields is not None and key in exclude_fields:
+				if key not in include_fields:
+					continue
+			if include_fields is None or key in include_fields:
+				field_name = key
+			else:
+				continue
+		fields[field_name] = _ncvar_to_dict(ncvars[key], delay_field_loading)
+		
+
 	#fields = None
 	#scan_type = None
 	latitude = None
