@@ -7,6 +7,7 @@ import pyart
 from pyart.core.radar import Radar
 import netCDF4
 import numpy as np
+import matplotlib.pyplot as plt
 
 def read_ptwrCDF(filename):
 	"""
@@ -18,6 +19,8 @@ def read_ptwrCDF(filename):
 		    'pyart/pyart/core/radar.py'
 	"""
 	pyart.load_config('/home/jdegug/MIRSL-PTWR-PythonGUI/ptwr_config.py')
+	
+
 	# Read ptwr cdf	
 	ncobj = netCDF4.Dataset(filename)
 	ncvars = ncobj.variables
@@ -27,10 +30,6 @@ def read_ptwrCDF(filename):
 	# coordinate variables -> create attribute dictionaries
 	time = _ncvar_to_dict(ncvars['Time'])				# Probably have to add the usec part
 	Usecs = _ncvar_to_dict(ncvars['Usecs'])				# Probably have to add the usec part
-	timeIt = 0
-	for item in time["data"]:
-		#print(item)
-		timeIt = timeIt + 1
 	
 	#_range = _ncvar_to_dict(ncvars['range'])
 	#print(time)
@@ -42,26 +41,17 @@ def read_ptwrCDF(filename):
 	#----------------------------- Unsure about this metadata thing ------------------------------
 	# 4.1 Global attribute -> move to metadata dictionary
 	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
-	if 'n_gates_vary' in metadata:
-		metadata['n_gates_vary'] = 'false'  # corrected below
+
 
 	# 4.2 Dimensions (do nothing)
 
-	# 4.3 Global variable -> move to metadata dictionary
+	# 4.3 Global variable -> move to metadata dictionary SUSPECT
 	if 'volume_number' in ncvars:
 		metadata['volume_number'] = int(ncvars['volume_number'][:])
 	else:
 		metadata['volume_number'] = 0
 
-	global_vars = {'platform_type': 'fixed', 'instrument_type': 'radar',
-		   'primary_axis': 'axis_z'}
-	# ignore time_* global variables, these are calculated from the time
-	# variable when the file is written.
-	for var, default_value in global_vars.items():
-		if var in ncvars:
-			metadata[var] = str(netCDF4.chartostring(ncvars[var][:]))
-	else:
-		metadata[var] = default_value
+	
 	#----------------------------------------------------------------------------------------------
 	
 	scan_type = 'ppi'
@@ -77,7 +67,7 @@ def read_ptwrCDF(filename):
 		_range["data"][rangeIt] = item * rangeIt
 		rangeIt = rangeIt + 1
 		
-	print(_range)
+	#print(_range)
 	sweep_number = {'data': np.ma.array([0], mask=False)};
 	
 	"""
@@ -96,22 +86,7 @@ def read_ptwrCDF(filename):
 
 	# 4.2 Dimensions (do nothing)
 
-	# 4.3 Global variable -> move to metadata dictionary
-	if 'volume_number' in ncvars:
-		metadata['volume_number'] = int(ncvars['volume_number'][:])
-	else:
-		metadata['volume_number'] = 0
-
-	global_vars = {'platform_type': 'fixed', 'instrument_type': 'radar',
-				   'primary_axis': 'axis_z'}
-	# ignore time_* global variables, these are calculated from the time
-	# variable when the file is written.
-	for var, default_value in global_vars.items():
-		if var in ncvars:
-			metadata[var] = str(netCDF4.chartostring(ncvars[var][:]))
-		else:
-			metadata[var] = default_value
-			
+	
 	# 4.10 Moments field data variables -> field attribute dictionary
 	if 'ray_n_gates' in ncvars:
 		# all variables with dimensions of n_points are fields.
@@ -149,7 +124,7 @@ def read_ptwrCDF(filename):
 	azimuth = None
 	elevation = None
 
-	return Radar(time, _range, fields, metadata, scan_type,
+	radar = Radar(time, _range, fields, metadata, scan_type,
                  latitude, longitude, altitude,
 
                  sweep_number, sweep_mode, fixed_angle, sweep_start_ray_index,
@@ -170,6 +145,37 @@ def read_ptwrCDF(filename):
                  pitch=None, georefs_applied=None,
                  
                  )
+	
+	
+	
+	#print(ncvars['Reflectivity'])
+	
+	reflectivity = _ncvar_to_dict(ncvars['Reflectivity'])
+	
+	print(reflectivity)
+	radar.ngates = 626;
+	radar.nrays = 438;
+	radar.add_field('reflectivity', reflectivity)
+	
+	radar.altitude = {'Units': 'meters', 'data': [144]}
+	radar.latitude = {'Units': 'degrees', 'data': [42.3909]}
+	radar.longitude = {'Units': 'degrees', 'data': [-72.5195]}
+	radar.azimuth = _ncvar_to_dict(ncvars['Azimuth'])
+	radar.elevation = _ncvar_to_dict(ncvars['Elevation'])
+	#radar.info()             
+	
+	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': radar.time['data']}
+	
+	usecs = _ncvar_to_dict(ncvars['Usecs'])
+
+	for i in range(len(usecs['data'])):
+		#print(radar.time['data'][i] + usecs['data'][i]/1000000)
+		radar.time['data'][i] = radar.time['data'][i] + (usecs['data'][i]/1000000)
+		
+	
+	print(radar.time)
+
+	return radar;
 
 
 def _ncvar_to_dict(ncvar, lazydict=False):
@@ -222,6 +228,9 @@ class _NetCDFVariableDataExtractor(object):
 
 
 radar = read_ptwrCDF('X20191016232920Z.nc')
+
+
+
 
 #PLOT ONE GRID EXAMPLE
 
