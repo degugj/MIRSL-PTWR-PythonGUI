@@ -64,7 +64,7 @@ def read_ptwrCDF(filename):
 	rangeIt = 0
 	for item in gatewidth["data"]:
 		#print(item * rangeIt)
-		_range["data"][rangeIt] = item * rangeIt
+		_range["data"][rangeIt] = (item * rangeIt)/1000
 		rangeIt = rangeIt + 1
 		
 	#print(_range)
@@ -152,7 +152,9 @@ def read_ptwrCDF(filename):
 	
 	reflectivity = _ncvar_to_dict(ncvars['Reflectivity'])
 	
-	print(reflectivity)
+
+	#print(ncvars['Reflectivity'])
+	#print(reflectivity['data'][1])
 	radar.ngates = 626;
 	radar.nrays = 438;
 	radar.add_field('reflectivity', reflectivity)
@@ -167,14 +169,20 @@ def read_ptwrCDF(filename):
 	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': radar.time['data']}
 	
 	usecs = _ncvar_to_dict(ncvars['Usecs'])
-
+	test = []
 	for i in range(len(usecs['data'])):
 		#print(radar.time['data'][i] + usecs['data'][i]/1000000)
-		radar.time['data'][i] = radar.time['data'][i] + (usecs['data'][i]/1000000)
+		#print(radar.time['data'][i] + (usecs['data'][i]/1000000))		
+		test.append(radar.time['data'][i] + (usecs['data'][i]/1000000))
+		#print(test[i])
+		
+	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': test[:]}
 		
 	
-	print(radar.time)
-
+	print(radar.info('full'))
+	print("----- For Scott -----")
+	print(radar.range['data'].mean())
+	
 	return radar;
 
 
@@ -245,8 +253,8 @@ gatefilter.exclude_masked('reflectivity')
 # perform Cartesian mapping, limit to the reflectivity field.
 grid = pyart.map.grid_from_radars(
     (radar,), gatefilters=(gatefilter, ),
-    grid_shape=(1, 241, 241),
-    grid_limits=((2000, 2000), (-123000.0, 123000.0), (-123000.0, 123000.0)),
+    grid_shape=(1, 3500, 3500),
+    grid_limits=((1, 5000), (-123000.0, 123000.0), (-123000.0, 123000.0)),
     fields=['reflectivity'])
 
 # create the plot
