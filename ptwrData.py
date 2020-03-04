@@ -3,6 +3,14 @@
 # MIRSL
 # 2/12/2020
 
+"""
+ptwrData.py
+===========
+This script contains functions necessary to interface with a PTWR object.
+The file can be imported into other scripts to access functions like read_ptwrCDF to instantiate a radar obect from a .nc file.
+See testGridPlot.py as an example.
+"""
+
 import pyart
 from pyart.core.radar import Radar
 import netCDF4
@@ -18,82 +26,53 @@ def read_ptwrCDF(filename):
 	References: 'pyart/pyart/io/cfradial.py'
 		    'pyart/pyart/core/radar.py'
 	"""
-	pyart.load_config('/home/jdegug/MIRSL-PTWR-PythonGUI/ptwr_config.py')
+	pyart.load_config('/home/jdegug/MIRSL-PTWR-PythonGUI/ptwr_config.py')	# Unclear if we actually need this
 	
-
-	# Read ptwr cdf	
+	# netCDF4 functions to obtain nc fields and vars
 	ncobj = netCDF4.Dataset(filename)
 	ncvars = ncobj.variables
-	#print(ncvars)
 
 	
-	# coordinate variables -> create attribute dictionaries
-	time = _ncvar_to_dict(ncvars['Time'])				# Probably have to add the usec part
-	Usecs = _ncvar_to_dict(ncvars['Usecs'])				# Probably have to add the usec part
+	# obtaining time and microseconds to later be merged as one time variable
+	time = _ncvar_to_dict(ncvars['Time'])			
+	Usecs = _ncvar_to_dict(ncvars['Usecs'])
 	
-	#_range = _ncvar_to_dict(ncvars['range'])
-	#print(time)
-	#print(time["data"])
-	#for key,value in time.items():
-	#	print(key)
+	
+	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])	# loads our metadata into radar objects. Also may not be necessary
 
-
-	#----------------------------- Unsure about this metadata thing ------------------------------
-	# 4.1 Global attribute -> move to metadata dictionary
-	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
-
-
-	# 4.2 Dimensions (do nothing)
-
-	# 4.3 Global variable -> move to metadata dictionary SUSPECT
 	if 'volume_number' in ncvars:
 		metadata['volume_number'] = int(ncvars['volume_number'][:])
 	else:
 		metadata['volume_number'] = 0
+	
+	scan_type = 'ppi'	# identifying scan type; may not be constant
+	
 
-	
-	#----------------------------------------------------------------------------------------------
-	
-	scan_type = 'ppi'
-	
-	i = 0
 	gatewidth = _ncvar_to_dict(ncvars['GateWidth'])
-	_range = gatewidth
-	#print(gatewidth)
-	#print("test", gatewidth.data[0])
+	
+
+
+	_range = gatewidth		# initializing range as gatewidth for convenience
 	rangeIt = 0
+
+	# calculating range using gatewidth times iterator
 	for item in gatewidth["data"]:
-		#print(item * rangeIt)
-		_range["data"][rangeIt] = (item * rangeIt)/1000
+		_range["data"][rangeIt] = (item * rangeIt)/1000		# must divide by 100 as Gatewidth is in mm
 		rangeIt = rangeIt + 1
 		
-	#print(_range)
 	sweep_number = {'data': np.ma.array([0], mask=False)};
-	
-	"""
-	for key in gatewidth.items():
-		if(i>0):
-			print(key)
-			print("OKAYYYYY")
-			print(gatewidth[key][0])
-		i=i+1
-		print(i)
-	"""
+
+
     
 	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
 	if 'n_gates_vary' in metadata:
-		metadata['n_gates_vary'] = 'false'  # corrected below
-
-	# 4.2 Dimensions (do nothing)
+		metadata['n_gates_vary'] = 'false'
 
 	
-	# 4.10 Moments field data variables -> field attribute dictionary
 	if 'ray_n_gates' in ncvars:
-		# all variables with dimensions of n_points are fields.
 		keys = [k for k, v in ncvars.items()
 				if v.dimensions == ('n_points', )]
 	else:
-		# all variables with dimensions of 'time', 'range' are fields
 		keys = [k for k, v in ncvars.items()
 				if v.dimensions == ('time', 'range')]
                 
@@ -110,13 +89,11 @@ def read_ptwrCDF(filename):
 				continue
 		fields[field_name] = _ncvar_to_dict(ncvars[key], delay_field_loading)
 		
+	
 
-	#fields = None
-	#scan_type = None
 	latitude = None
 	longitude = None
 	altitude = None
-	#sweep_number = None
 	sweep_mode = None
 	fixed_angle = None
 	sweep_start_ray_index = None
@@ -124,6 +101,8 @@ def read_ptwrCDF(filename):
 	azimuth = None
 	elevation = None
 
+
+	# instantiating a new radar object with empty fields... would rather intantiate while returning
 	radar = Radar(time, _range, fields, metadata, scan_type,
                  latitude, longitude, altitude,
 
@@ -148,13 +127,11 @@ def read_ptwrCDF(filename):
 	
 	
 	
-	#print(ncvars['Reflectivity'])
+
+	# filling radar object with remaining fields
 	
 	reflectivity = _ncvar_to_dict(ncvars['Reflectivity'])
 	
-
-	#print(ncvars['Reflectivity'])
-	#print(reflectivity['data'][1])
 	radar.ngates = 626;
 	radar.nrays = 438;
 	radar.add_field('reflectivity', reflectivity)
@@ -164,17 +141,13 @@ def read_ptwrCDF(filename):
 	radar.longitude = {'Units': 'degrees', 'data': [-72.5195]}
 	radar.azimuth = _ncvar_to_dict(ncvars['Azimuth'])
 	radar.elevation = _ncvar_to_dict(ncvars['Elevation'])
-	#radar.info()             
 	
-	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': radar.time['data']}
+	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': radar.time['data']}	# must be changed (cannot hard code the seconds since)
 	
 	usecs = _ncvar_to_dict(ncvars['Usecs'])
 	test = []
 	for i in range(len(usecs['data'])):
-		#print(radar.time['data'][i] + usecs['data'][i]/1000000)
-		#print(radar.time['data'][i] + (usecs['data'][i]/1000000))		
 		test.append(radar.time['data'][i] + (usecs['data'][i]/1000000))
-		#print(test[i])
 		
 	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': test[:]}
 		
@@ -184,6 +157,8 @@ def read_ptwrCDF(filename):
 	print(radar.range['data'].mean())
 	
 	return radar;
+
+
 
 
 def _ncvar_to_dict(ncvar, lazydict=False):
@@ -230,37 +205,4 @@ class _NetCDFVariableDataExtractor(object):
         # some version of netCDF return scalar or scalar arrays for scalar
         # NetCDF variables.
         return np.atleast_1d(data)
-
-
-
-
-
-radar = read_ptwrCDF('X20191016232920Z.nc')
-
-
-
-
-#PLOT ONE GRID EXAMPLE
-
-# mask out last 10 gates of each ray, this removes the "ring" around th radar.
-radar.fields['reflectivity']['data'][:, -10:] = np.ma.masked
-
-# exclude masked gates from the gridding
-gatefilter = pyart.filters.GateFilter(radar)
-gatefilter.exclude_transition()
-gatefilter.exclude_masked('reflectivity')
-
-# perform Cartesian mapping, limit to the reflectivity field.
-grid = pyart.map.grid_from_radars(
-    (radar,), gatefilters=(gatefilter, ),
-    grid_shape=(1, 3500, 3500),
-    grid_limits=((1, 5000), (-123000.0, 123000.0), (-123000.0, 123000.0)),
-    fields=['reflectivity'])
-
-# create the plot
-fig = plt.figure()
-ax = fig.add_subplot(111)
-ax.imshow(grid.fields['reflectivity']['data'][0], origin='lower')
-plt.show()
-
 
