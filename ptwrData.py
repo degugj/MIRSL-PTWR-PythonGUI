@@ -34,7 +34,7 @@ def read_ptwrCDF(filename):
 
 	
 	# obtaining time and microseconds to later be merged as one time variable
-	time = _ncvar_to_dict(ncvars['Time'])			
+	time = _ncvar_to_dict(ncvars['Time'])
 	Usecs = _ncvar_to_dict(ncvars['Usecs'])
 	
 	
@@ -142,21 +142,30 @@ def read_ptwrCDF(filename):
 	radar.azimuth = _ncvar_to_dict(ncvars['Azimuth'])
 	radar.elevation = _ncvar_to_dict(ncvars['Elevation'])
 	
+
+	#---------------Test for PPI plot ----------------------
+	radar.fixed_angle = radar.elevation		# initializing range as gatewidth for convenience
+	faIt = 0
+
+	# calculating range using gatewidth times iterator
+
+	for i in range(len(radar.elevation['data'])):
+		radar.fixed_angle['data'][faIt] = radar.elevation['data'][faIt] / faIt
+		faIt = faIt + 1		# adding Usecs to time array
+		
+
+	#----------------------------------
+
 	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': radar.time['data']}	# must be changed (cannot hard code the seconds since)
 	
 	usecs = _ncvar_to_dict(ncvars['Usecs'])
 	test = []
 	for i in range(len(usecs['data'])):
-		test.append(radar.time['data'][i] + (usecs['data'][i]/1000000))
+		test.append(radar.time['data'][i] + (usecs['data'][i]/1000000))		# adding Usecs to time array
 		
 	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': test[:]}
-		
 	
-	print(radar.info('full'))
-	print("----- For Scott -----")
-	print(radar.range['data'].mean())
-	
-	return radar;
+	return radar;		# return the populated radar object
 
 
 
