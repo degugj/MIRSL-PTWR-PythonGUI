@@ -18,9 +18,13 @@ radar = ptwrData.read_ptwrCDF('X20191016232920Z.nc')
 
 # exclude masked gates from the gridding
 
+
+
 gatefilter = pyart.filters.GateFilter(radar)
 gatefilter.exclude_transition()
 gatefilter.exclude_masked('reflectivity')
+
+radar.range['data'] = np.linspace(0.0, 96.*(626-1), 626)
 
 # perform Cartesian mapping, limit to the reflectivity field.
 grid = pyart.map.grid_from_radars(

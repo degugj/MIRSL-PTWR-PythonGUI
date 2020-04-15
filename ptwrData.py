@@ -26,7 +26,7 @@ def read_ptwrCDF(filename):
 	References: 'pyart/pyart/io/cfradial.py'
 		    'pyart/pyart/core/radar.py'
 	"""
-	pyart.load_config('/home/jdegug/MIRSL-PTWR-PythonGUI/ptwr_config.py')	# Unclear if we actually need this
+	
 	
 	# netCDF4 functions to obtain nc fields and vars
 	ncobj = netCDF4.Dataset(filename)
@@ -45,25 +45,24 @@ def read_ptwrCDF(filename):
 	else:
 		metadata['volume_number'] = 0
 	
+
+
 	scan_type = 'ppi'	# identifying scan type; may not be constant
-	
 
 	gatewidth = _ncvar_to_dict(ncvars['GateWidth'])
-	
-
 
 	_range = gatewidth		# initializing range as gatewidth for convenience
 	rangeIt = 0
 
 	# calculating range using gatewidth times iterator
 	for item in gatewidth["data"]:
-		_range["data"][rangeIt] = (item * rangeIt)/1000		# must divide by 100 as Gatewidth is in mm
+		_range["data"][rangeIt] = (item * rangeIt)/1000		# must divide by 1000 as Gatewidth is in mm
 		rangeIt = rangeIt + 1
 		
 	sweep_number = {'data': np.ma.array([0], mask=False)};
 
-
-    
+	#-----------------------------------------------------------
+    	#---------------	FROM CFRAD	--------------------
 	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
 	if 'n_gates_vary' in metadata:
 		metadata['n_gates_vary'] = 'false'
@@ -88,8 +87,7 @@ def read_ptwrCDF(filename):
 			else:
 				continue
 		fields[field_name] = _ncvar_to_dict(ncvars[key], delay_field_loading)
-		
-	
+	#-----------------------------------------------------------
 
 	latitude = None
 	longitude = None
@@ -128,12 +126,14 @@ def read_ptwrCDF(filename):
 	
 	
 
-	# filling radar object with remaining fields
+	# filling radar object with remaining fields (I had difficulty replicating the cfradial approach of instantiating at the end... ideally I'll change this)
 	
 	reflectivity = _ncvar_to_dict(ncvars['Reflectivity'])
 	
-	radar.ngates = 626;
+	radar.ngates = 626;		# suspect of error (I believe this is what zach was referring to)
 	radar.nrays = 438;
+
+
 	radar.add_field('reflectivity', reflectivity)
 	
 	radar.altitude = {'Units': 'meters', 'data': [144]}
@@ -143,18 +143,17 @@ def read_ptwrCDF(filename):
 	radar.elevation = _ncvar_to_dict(ncvars['Elevation'])
 	
 
-	#---------------Test for PPI plot ----------------------
+
 	radar.fixed_angle = radar.elevation		# initializing range as gatewidth for convenience
 	faIt = 0
 
 	# calculating range using gatewidth times iterator
 
 	for i in range(len(radar.elevation['data'])):
-		radar.fixed_angle['data'][faIt] = radar.elevation['data'][faIt] / faIt
+		radar.fixed_angle['data'][faIt] = radar.elevation['data'][faIt] / (faIt+1)
 		faIt = faIt + 1		# adding Usecs to time array
-		
 
-	#----------------------------------
+
 
 	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': radar.time['data']}	# must be changed (cannot hard code the seconds since)
 	
@@ -165,6 +164,15 @@ def read_ptwrCDF(filename):
 		
 	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': test[:]}
 	
+
+	data = netCDF4.Dataset(filename)
+	radar.elevation['data'] = data['Elevation'][:]
+	radar.init_gate_x_y_z()
+	radar.init_gate_longitude_latitude()
+	radar.init_gate_altitude()
+
+
+
 	return radar;		# return the populated radar object
 
 
