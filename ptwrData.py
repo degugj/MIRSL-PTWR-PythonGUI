@@ -31,12 +31,16 @@ def read_ptwrCDF(filename):
 	# netCDF4 functions to obtain nc fields and vars
 	ncobj = netCDF4.Dataset(filename)
 	ncvars = ncobj.variables
+	ncdims = ncobj.dimensions
 
 	
 	# obtaining time and microseconds to later be merged as one time variable
 	time = _ncvar_to_dict(ncvars['Time'])
+	time['calendar'] = 'standard'
+
 	Usecs = _ncvar_to_dict(ncvars['Usecs'])
-	
+	nrays = ncdims['Radial'].size
+	ngates = ncdims['Gate'].size
 	
 	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])	# loads our metadata into radar objects. Also may not be necessary
 
@@ -51,14 +55,16 @@ def read_ptwrCDF(filename):
 
 	gatewidth = _ncvar_to_dict(ncvars['GateWidth'])
 
-	_range = gatewidth		# initializing range as gatewidth for convenience
-	rangeIt = 0
+	_range = {'data': np.zeros((ngates))}
+	rangeIt = np.arange(0, ngates, 1)
 
 	# calculating range using gatewidth times iterator
-	for item in gatewidth["data"]:
-		_range["data"][rangeIt] = (item * rangeIt)/1000		# must divide by 1000 as Gatewidth is in mm
-		rangeIt = rangeIt + 1
-		
+	#for i in range(nrays):
+	_range['data'] = rangeIt * gatewidth['data'][0]/1000		# must divide by 1000 as Gatewidth is in mm
+
+
+	_range['units'] = 'meters'
+
 	sweep_number = {'data': np.ma.array([0], mask=False)};
 
 	#-----------------------------------------------------------
@@ -87,6 +93,7 @@ def read_ptwrCDF(filename):
 			else:
 				continue
 		fields[field_name] = _ncvar_to_dict(ncvars[key], delay_field_loading)
+	altitude_agl = ncobj.getncattr('Height')
 	#-----------------------------------------------------------
 
 	latitude = None
@@ -94,8 +101,8 @@ def read_ptwrCDF(filename):
 	altitude = None
 	sweep_mode = None
 	fixed_angle = None
-	sweep_start_ray_index = None
-	sweep_end_ray_index = None
+	sweep_start_ray_index = {'data': np.array([0])}
+	sweep_end_ray_index = {'data': np.array([nrays-1])}
 	azimuth = None
 	elevation = None
 
@@ -130,15 +137,15 @@ def read_ptwrCDF(filename):
 	
 	reflectivity = _ncvar_to_dict(ncvars['Reflectivity'])
 	
-	radar.ngates = 626;		# suspect of error (I believe this is what zach was referring to)
-	radar.nrays = 438;
+	radar.ngates = ngates		# suspect of error (I believe this is what zach was referring to)
+	radar.nrays = nrays
 
 
 	radar.add_field('reflectivity', reflectivity)
-	
-	radar.altitude = {'Units': 'meters', 'data': [144]}
-	radar.latitude = {'Units': 'degrees', 'data': [42.3909]}
-	radar.longitude = {'Units': 'degrees', 'data': [-72.5195]}
+
+	radar.altitude = {'Units': 'meters', 'data': np.array([ncobj.getncattr('Height')])}
+	radar.latitude = {'Units': 'degrees', 'data': np.array([ncobj.getncattr('Latitude')])}
+	radar.longitude = {'Units': 'degrees', 'data': np.array([ncobj.getncattr('Longitude')])}
 	radar.azimuth = _ncvar_to_dict(ncvars['Azimuth'])
 	radar.elevation = _ncvar_to_dict(ncvars['Elevation'])
 	
@@ -148,30 +155,18 @@ def read_ptwrCDF(filename):
 	faIt = 0
 
 	# calculating range using gatewidth times iterator
-
-	for i in range(len(radar.elevation['data'])):
-		radar.fixed_angle['data'][faIt] = radar.elevation['data'][faIt] / (faIt+1)
-		faIt = faIt + 1		# adding Usecs to time array
-
-
-
-	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': radar.time['data']}	# must be changed (cannot hard code the seconds since)
+	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'calendar': 'standard',
+															'data': radar.time['data']}	# must be changed (cannot hard code the seconds since)
 	
 	usecs = _ncvar_to_dict(ncvars['Usecs'])
 	test = []
 	for i in range(len(usecs['data'])):
 		test.append(radar.time['data'][i] + (usecs['data'][i]/1000000))		# adding Usecs to time array
 		
-	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'data': test[:]}
-	
-
-	data = netCDF4.Dataset(filename)
-	radar.elevation['data'] = data['Elevation'][:]
+	radar.time['data'] = test[:]
 	radar.init_gate_x_y_z()
 	radar.init_gate_longitude_latitude()
 	radar.init_gate_altitude()
-
-
 
 	return radar;		# return the populated radar object
 
@@ -222,4 +217,5 @@ class _NetCDFVariableDataExtractor(object):
         # some version of netCDF return scalar or scalar arrays for scalar
         # NetCDF variables.
         return np.atleast_1d(data)
+
 
