@@ -1,14 +1,16 @@
-# Jack DeGuglielmo
-# University of Massachusetts Amherst '21
-# MIRSL
-# 2/12/2020
+# University of Massachusetts Amherst
+# Microwave Imaging and Remote Sensing Lab (MIRSL)
 
 """
-ptwrData.py
-===========
-This script contains functions necessary to interface with a PTWR object.
-The file can be imported into other scripts to access functions like read_ptwrCDF to instantiate a radar obect from a .nc file.
-See testGridPlot.py as an example.
+Module to convert netCDF to a Py-ART radar object.
+
+This module reads netCDF outputs from the Microwave Imaging and Remote Sensing Lab's (MIRSL) Phase Tilt Weather Radar (PTWR). 
+The purpose of this module is to instantiate a Py-ART radar object from PTWR data. 
+See Py-ART's documentation on radar objects to see how this can be used for visualization/analysis.
+
+
+Authors: Jack DeGuglielmo (deguglj)
+Version: February 12, 2020
 """
 
 import pyart
@@ -17,174 +19,188 @@ import netCDF4
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def read_ptwrCDF(filename):
-	"""
-	Takes the filepath to a MIRSL netcdf file as input.
-	Returns a pyart Radar object.
-	(Designed for ptwr data netcdfs)
+    """
+    Takes the filepath to a MIRSL netcdf file as input.
+    Returns a pyart Radar object.
+    (Designed for ptwr data netcdfs)
 
-	References: 'pyart/pyart/io/cfradial.py'
-		    'pyart/pyart/core/radar.py'
-	"""
-	
-	
-	# netCDF4 functions to obtain nc fields and vars
-	ncobj = netCDF4.Dataset(filename)
-	ncvars = ncobj.variables
-	ncdims = ncobj.dimensions
+    References: 'pyart/pyart/io/cfradial.py'
+                'pyart/pyart/core/radar.py'
+    """
 
-	
-	# obtaining time and microseconds to later be merged as one time variable
-	time = _ncvar_to_dict(ncvars['Time'])
-	time['calendar'] = 'standard'
+    # netCDF4 functions to obtain nc fields and vars
+    ncobj = netCDF4.Dataset(filename)
+    ncvars = ncobj.variables
+    ncdims = ncobj.dimensions
 
-	Usecs = _ncvar_to_dict(ncvars['Usecs'])
-	nrays = ncdims['Radial'].size
-	ngates = ncdims['Gate'].size
-	
-	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])	# loads our metadata into radar objects. Also may not be necessary
+    # obtaining time and microseconds to later be merged as one time variable
+    time = _ncvar_to_dict(ncvars["Time"])
+    time["calendar"] = "standard"
 
-	if 'volume_number' in ncvars:
-		metadata['volume_number'] = int(ncvars['volume_number'][:])
-	else:
-		metadata['volume_number'] = 0
-	
+    Usecs = _ncvar_to_dict(ncvars["Usecs"])
+    nrays = ncdims["Radial"].size
+    ngates = ncdims["Gate"].size
 
+    # loads our metadata into radar objects. Also may not be necessary
+    metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
 
-	scan_type = 'ppi'	# identifying scan type; may not be constant
+    if "volume_number" in ncvars:
+        metadata["volume_number"] = int(ncvars["volume_number"][:])
+    else:
+        metadata["volume_number"] = 0
 
-	gatewidth = _ncvar_to_dict(ncvars['GateWidth'])
+    scan_type = "ppi"  # identifying scan type; may not be constant
 
-	_range = {'data': np.zeros((ngates))}
-	rangeIt = np.arange(0, ngates, 1)
+    gatewidth = _ncvar_to_dict(ncvars["GateWidth"])
 
-	# calculating range using gatewidth times iterator
-	#for i in range(nrays):
-	_range['data'] = rangeIt * gatewidth['data'][0]/1000		# must divide by 1000 as Gatewidth is in mm
+    _range = {"data": np.zeros((ngates))}
+    rangeIt = np.arange(0, ngates, 1)
 
+    # calculating range using gatewidth times iterator
+    # for i in range(nrays):
+    _range["data"] = (
+        rangeIt * gatewidth["data"][0] / 1000
+    )  # must divide by 1000 as Gatewidth is in mm
 
-	_range['units'] = 'meters'
+    _range["units"] = "meters"
 
-	sweep_number = {'data': np.ma.array([0], mask=False)};
+    sweep_number = {"data": np.ma.array([0], mask=False)}
 
-	#-----------------------------------------------------------
-    	#---------------	FROM CFRAD	--------------------
-	metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
-	if 'n_gates_vary' in metadata:
-		metadata['n_gates_vary'] = 'false'
+    # -----------------------------------------------------------
+    # ---------------	FROM CFRAD	--------------------
+    metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
+    if "n_gates_vary" in metadata:
+        metadata["n_gates_vary"] = "false"
 
-	
-	if 'ray_n_gates' in ncvars:
-		keys = [k for k, v in ncvars.items()
-				if v.dimensions == ('n_points', )]
-	else:
-		keys = [k for k, v in ncvars.items()
-				if v.dimensions == ('time', 'range')]
-                
-	fields = {}
-	for key in keys:
-		field_name = filemetadata.get_field_name(key)
-		if field_name is None:
-			if exclude_fields is not None and key in exclude_fields:
-				if key not in include_fields:
-					continue
-			if include_fields is None or key in include_fields:
-				field_name = key
-			else:
-				continue
-		fields[field_name] = _ncvar_to_dict(ncvars[key], delay_field_loading)
-	altitude_agl = ncobj.getncattr('Height')
-	#-----------------------------------------------------------
+    if "ray_n_gates" in ncvars:
+        keys = [k for k, v in ncvars.items() if v.dimensions == ("n_points",)]
+    else:
+        keys = [k for k, v in ncvars.items() if v.dimensions == ("time", "range")]
 
-	latitude = None
-	longitude = None
-	altitude = None
-	sweep_mode = None
-	fixed_angle = None
-	sweep_start_ray_index = {'data': np.array([0])}
-	sweep_end_ray_index = {'data': np.array([nrays-1])}
-	azimuth = None
-	elevation = None
+    fields = {}
+    for key in keys:
+        field_name = filemetadata.get_field_name(key)
+        if field_name is None:
+            if exclude_fields is not None and key in exclude_fields:
+                if key not in include_fields:
+                    continue
+            if include_fields is None or key in include_fields:
+                field_name = key
+            else:
+                continue
+        fields[field_name] = _ncvar_to_dict(ncvars[key], delay_field_loading)
+    altitude_agl = ncobj.getncattr("Height")
+    # -----------------------------------------------------------
 
+    latitude = None
+    longitude = None
+    altitude = None
+    sweep_mode = None
+    fixed_angle = None
+    sweep_start_ray_index = {"data": np.array([0])}
+    sweep_end_ray_index = {"data": np.array([nrays - 1])}
+    azimuth = None
+    elevation = None
 
-	# instantiating a new radar object with empty fields... would rather intantiate while returning
-	radar = Radar(time, _range, fields, metadata, scan_type,
-                 latitude, longitude, altitude,
+    # instantiating a new radar object with empty fields... would rather intantiate while returning
+    radar = Radar(
+        time,
+        _range,
+        fields,
+        metadata,
+        scan_type,
+        latitude,
+        longitude,
+        altitude,
+        sweep_number,
+        sweep_mode,
+        fixed_angle,
+        sweep_start_ray_index,
+        sweep_end_ray_index,
+        azimuth,
+        elevation,
+        altitude_agl=None,
+        target_scan_rate=None,
+        rays_are_indexed=None,
+        ray_angle_res=None,
+        scan_rate=None,
+        antenna_transition=None,
+        instrument_parameters=None,
+        radar_calibration=None,
+        rotation=None,
+        tilt=None,
+        roll=None,
+        drift=None,
+        heading=None,
+        pitch=None,
+        georefs_applied=None,
+    )
 
-                 sweep_number, sweep_mode, fixed_angle, sweep_start_ray_index,
-                 sweep_end_ray_index,
+    # filling radar object with remaining fields (I had difficulty replicating the cfradial approach of instantiating at the end... ideally I'll change this)
 
-                 azimuth, elevation,
+    reflectivity = _ncvar_to_dict(ncvars["Reflectivity"])
 
-                 altitude_agl=None,
-                 target_scan_rate=None, rays_are_indexed=None,
-                 ray_angle_res=None,
+    # suspect of error (I believe this is what zach was referring to)
+    radar.ngates = ngates
+    radar.nrays = nrays
 
-                 scan_rate=None, antenna_transition=None,
+    radar.add_field("reflectivity", reflectivity)
 
-                 instrument_parameters=None,
-                 radar_calibration=None,
+    radar.altitude = {"Units": "meters", "data": np.array([ncobj.getncattr("Height")])}
+    radar.latitude = {
+        "Units": "degrees",
+        "data": np.array([ncobj.getncattr("Latitude")]),
+    }
+    radar.longitude = {
+        "Units": "degrees",
+        "data": np.array([ncobj.getncattr("Longitude")]),
+    }
+    radar.azimuth = _ncvar_to_dict(ncvars["Azimuth"])
+    radar.elevation = _ncvar_to_dict(ncvars["Elevation"])
 
-                 rotation=None, tilt=None, roll=None, drift=None, heading=None,
-                 pitch=None, georefs_applied=None,
-                 
-                 )
-	
-	
-	
+    # initializing range as gatewidth for convenience
+    radar.fixed_angle = radar.elevation
+    faIt = 0
 
-	# filling radar object with remaining fields (I had difficulty replicating the cfradial approach of instantiating at the end... ideally I'll change this)
-	
-	reflectivity = _ncvar_to_dict(ncvars['Reflectivity'])
-	
-	radar.ngates = ngates		# suspect of error (I believe this is what zach was referring to)
-	radar.nrays = nrays
+    # calculating range using gatewidth times iterator
+    radar.time = {
+        "units": "seconds since 2020-02-13T00:28:55Z",
+        "calendar": "standard",
+        "data": radar.time["data"],
+    }  # must be changed (cannot hard code the seconds since)
 
+    usecs = _ncvar_to_dict(ncvars["Usecs"])
+    test = []
+    for i in range(len(usecs["data"])):
+        # adding Usecs to time array
+        test.append(radar.time["data"][i] + (usecs["data"][i] / 1000000))
 
-	radar.add_field('reflectivity', reflectivity)
+    radar.time["data"] = test[:]
+    radar.init_gate_x_y_z()
+    radar.init_gate_longitude_latitude()
+    radar.init_gate_altitude()
 
-	radar.altitude = {'Units': 'meters', 'data': np.array([ncobj.getncattr('Height')])}
-	radar.latitude = {'Units': 'degrees', 'data': np.array([ncobj.getncattr('Latitude')])}
-	radar.longitude = {'Units': 'degrees', 'data': np.array([ncobj.getncattr('Longitude')])}
-	radar.azimuth = _ncvar_to_dict(ncvars['Azimuth'])
-	radar.elevation = _ncvar_to_dict(ncvars['Elevation'])
-	
-
-
-	radar.fixed_angle = radar.elevation		# initializing range as gatewidth for convenience
-	faIt = 0
-
-	# calculating range using gatewidth times iterator
-	radar.time = {'units': 'seconds since 2020-02-13T00:28:55Z', 'calendar': 'standard',
-															'data': radar.time['data']}	# must be changed (cannot hard code the seconds since)
-	
-	usecs = _ncvar_to_dict(ncvars['Usecs'])
-	test = []
-	for i in range(len(usecs['data'])):
-		test.append(radar.time['data'][i] + (usecs['data'][i]/1000000))		# adding Usecs to time array
-		
-	radar.time['data'] = test[:]
-	radar.init_gate_x_y_z()
-	radar.init_gate_longitude_latitude()
-	radar.init_gate_altitude()
-
-	return radar;		# return the populated radar object
-
-
+    return radar  # return the populated radar object
 
 
 def _ncvar_to_dict(ncvar, lazydict=False):
-    """ Convert a NetCDF Dataset variable to a dictionary. """
+    """Convert a NetCDF Dataset variable to a dictionary."""
     # copy all attribute except for scaling parameters
-    d = dict((k, getattr(ncvar, k)) for k in ncvar.ncattrs()
-             if k not in ['scale_factor', 'add_offset'])
+    d = dict(
+        (k, getattr(ncvar, k))
+        for k in ncvar.ncattrs()
+        if k not in ["scale_factor", "add_offset"]
+    )
     data_extractor = _NetCDFVariableDataExtractor(ncvar)
     if lazydict:
         d = LazyLoadDict(d)
-        d.set_lazy('data', data_extractor)
+        d.set_lazy("data", data_extractor)
     else:
-        d['data'] = data_extractor()
+        d["data"] = data_extractor()
     return d
+
 
 class _NetCDFVariableDataExtractor(object):
     """
@@ -198,11 +214,11 @@ class _NetCDFVariableDataExtractor(object):
     """
 
     def __init__(self, ncvar):
-        """ initialize the object. """
+        """initialize the object."""
         self.ncvar = ncvar
 
     def __call__(self):
-        """ Return an array containing data from the stored variable. """
+        """Return an array containing data from the stored variable."""
         data = self.ncvar[:]
         if data is np.ma.masked:
             # If the data is a masked scalar, MaskedConstant is returned by
@@ -217,5 +233,3 @@ class _NetCDFVariableDataExtractor(object):
         # some version of netCDF return scalar or scalar arrays for scalar
         # NetCDF variables.
         return np.atleast_1d(data)
-
-
