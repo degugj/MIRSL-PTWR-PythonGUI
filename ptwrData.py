@@ -22,28 +22,29 @@ import matplotlib.pyplot as plt
 
 def read_ptwrCDF(filename):
     """
-    Takes the filepath to a MIRSL netcdf file as input.
-    Returns a pyart Radar object.
-    (Designed for ptwr data netcdfs)
+    Reads a PTWR netCDF output file and returns a Py-ART radar object.
 
-    References: 'pyart/pyart/io/cfradial.py'
-                'pyart/pyart/core/radar.py'
+    Takes the filepath to a PTWR output file.
+
+    See also: 'pyart/pyart/core/radar.py (https://arm-doe.github.io/pyart/API/generated/pyart.core.Radar.html)'
+              'pyart/pyart/io/cfradial.py
     """
 
-    # netCDF4 functions to obtain nc fields and vars
+    # Read in netCDF features
     ncobj = netCDF4.Dataset(filename)
     ncvars = ncobj.variables
     ncdims = ncobj.dimensions
 
-    # obtaining time and microseconds to later be merged as one time variable
-    time = _ncvar_to_dict(ncvars["Time"])
-    time["calendar"] = "standard"
+    # Time
+    seconds = _ncvar_to_dict(ncvars["Time"])
+    seconds["calendar"] = "standard"
+    microseconds = _ncvar_to_dict(ncvars["Usecs"])
 
-    Usecs = _ncvar_to_dict(ncvars["Usecs"])
+    # Number of rays and range gates
     nrays = ncdims["Radial"].size
     ngates = ncdims["Gate"].size
 
-    # loads our metadata into radar objects. Also may not be necessary
+    # Loading metadata from netCDF to add to radar object.
     metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
 
     if "volume_number" in ncvars:
@@ -70,7 +71,6 @@ def read_ptwrCDF(filename):
 
     # -----------------------------------------------------------
     # ---------------	FROM CFRAD	--------------------
-    metadata = dict([(k, getattr(ncobj, k)) for k in ncobj.ncattrs()])
     if "n_gates_vary" in metadata:
         metadata["n_gates_vary"] = "false"
 
@@ -106,7 +106,7 @@ def read_ptwrCDF(filename):
 
     # instantiating a new radar object with empty fields... would rather intantiate while returning
     radar = Radar(
-        time,
+        seconds,
         _range,
         fields,
         metadata,
@@ -139,7 +139,6 @@ def read_ptwrCDF(filename):
     )
 
     # filling radar object with remaining fields (I had difficulty replicating the cfradial approach of instantiating at the end... ideally I'll change this)
-
     reflectivity = _ncvar_to_dict(ncvars["Reflectivity"])
 
     # suspect of error (I believe this is what zach was referring to)
